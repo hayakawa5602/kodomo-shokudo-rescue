@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# env（秘密情報はコミットしない）
+.env
+.env.*
+!.env.example

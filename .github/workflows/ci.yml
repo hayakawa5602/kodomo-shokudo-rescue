@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 型チェック
+        run: npm run typecheck
+      - name: データベースの権限テスト（RLS）
+        run: npm run test:db
+      - name: Web版のビルド
+        run: npm run build:web
+      - name: 秘密鍵が混入していないか確認
+        run: |
+          if grep -rIn --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist -E "sb_secret_[A-Za-z0-9]|eyJhbGciOi[A-Za-z0-9_-]{20,}" . ; then
+            echo "秘密鍵らしき文字列が見つかりました。削除してください。" && exit 1
+          fi
