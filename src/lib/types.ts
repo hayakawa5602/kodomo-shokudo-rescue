@@ -72,6 +72,7 @@ export const REGIONS = [
 
 export type SupportRequest = {
   id: string;
+  ownerId?: string;
   title: string;
   category: RequestCategory;
   region: string;

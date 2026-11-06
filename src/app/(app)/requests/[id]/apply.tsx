@@ -1,44 +1,66 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Checkbox } from '@/components/Checkbox';
-import { DemoBanner, NotYetConnected } from '@/components/StatusNotices';
 import { Button, Chip, Field, H1, H2, Notice, P, Row, Screen } from '@/components/ui';
-import { DEMO_REQUESTS } from '@/demo/requests';
-import { ALLERGENS, HANDOVER_LABEL, STORAGE_LABEL } from '@/lib/types';
+import { applyToRequest } from '@/lib/applications';
+import { useAuth } from '@/lib/auth';
+import { dbErrorMessage, fetchRequest, isDemoId } from '@/lib/requests';
+import { ALLERGENS, HANDOVER_LABEL, STORAGE_LABEL, SupportRequest } from '@/lib/types';
 import { FoodOfferDraft, validateFoodOffer } from '@/lib/validation';
 
 export default function Apply() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const r = DEMO_REQUESTS.find((x) => x.id === id);
+  const { session, profile } = useAuth();
+  const [r, setR] = useState<SupportRequest | null | undefined>(undefined);
   const [d, setD] = useState<FoodOfferDraft>({
     itemName: '', quantity: '', expiryType: '', expiryDate: '', storage: '', allergens: [], unopened: false, handover: '',
   });
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState('');
   const set = <K extends keyof FoodOfferDraft>(k: K, v: FoodOfferDraft[K]) => setD((p) => ({ ...p, [k]: v }));
 
-  if (!r) return <Screen><H1>募集が見つかりません</H1></Screen>;
+  useEffect(() => {
+    fetchRequest(id).then(setR);
+  }, [id]);
 
-  const submit = () => {
+  if (r === undefined) return <Screen><P sub>読み込み中…</P></Screen>;
+  if (!r || isDemoId(r.id) || r.category === 'fund') return <Screen><H1>この募集には申し込めません</H1></Screen>;
+
+  const canApply =
+    !!profile && (profile.role === 'company' || profile.role === 'resident') && profile.verification_status === 'approved' && !profile.is_suspended && r.status === 'open';
+
+  const submit = async () => {
     const e = r.category === 'food' ? validateFoodOffer(d) : {};
     if (r.category === 'volunteer' && message.trim().length < 5) e.message = '参加にあたっての一言を入力してください';
+    if (message.length > 500) e.message = 'メッセージは500文字以内にしてください';
     setErrors(e);
-    setOk(Object.keys(e).length === 0);
+    setServerError('');
+    if (Object.keys(e).length > 0 || !session) return;
+    setBusy(true);
+    try {
+      await applyToRequest(session.user.id, r.id, r.category, message, d);
+      router.replace({ pathname: '/applications', params: { applied: '1' } });
+    } catch (err: any) {
+      setServerError(dbErrorMessage(err?.message ?? String(err)));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <Screen>
       <H1>支援を申し込む</H1>
-      <P sub>{r.title}</P>
-      <DemoBanner />
-      <NotYetConnected step="STEP 7" what="申込の送信" />
+      <P sub>{r.title}（{r.orgName}）</P>
+      {!canApply && <Notice tone="warn">申し込むには、企業または地域住民として登録し、本人確認・団体審査の承認を受けている必要があります。</Notice>}
 
       {r.category === 'food' && (
         <>
           <H2>提供する食品の確認</H2>
-          <Field label="品名" required value={d.itemName} onChangeText={(v) => set('itemName', v)} error={errors.itemName} />
-          <Field label="数量" required placeholder="例：5kg × 2袋" value={d.quantity} onChangeText={(v) => set('quantity', v)} error={errors.quantity} />
+          <Notice tone="info">未開封で、期限内の食品だけ提供できます。受け取った食堂が安全に使えるよう、正確に入力してください。</Notice>
+          <Field label="品名" required value={d.itemName} onChangeText={(v) => set('itemName', v)} error={errors.itemName} maxLength={100} />
+          <Field label="数量" required placeholder="例：5kg × 2袋" value={d.quantity} onChangeText={(v) => set('quantity', v)} error={errors.quantity} maxLength={100} />
           <P>期限の種類（必須）</P>
           <Row wrap>
             <Chip label="賞味期限" selected={d.expiryType === 'best_before'} onPress={() => set('expiryType', 'best_before')} />
@@ -82,9 +104,10 @@ export default function Apply() {
         value={message}
         onChangeText={setMessage}
         error={errors.message}
+        maxLength={500}
       />
-      <Button label="申込内容をチェック" variant="accent" onPress={submit} />
-      {ok && <Notice tone="info">入力内容に問題はありません（まだ送信はされません）。</Notice>}
+      {serverError !== '' && <Notice tone="danger">{serverError}</Notice>}
+      <Button label={busy ? '送信中…' : '申し込む'} variant="accent" onPress={submit} disabled={busy || !canApply} />
     </Screen>
   );
 }

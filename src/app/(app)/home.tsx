@@ -84,7 +84,7 @@ export default function Home() {
           </Pressable>
         ))}
       </View>
-      <P sub>※ 募集・申込・通知などは STEP 6 以降で順に使えるようになります。</P>
+      <P sub>※ 資金支援の決済は、法的確認が完了するまで利用できません。</P>
     </Screen>
   );
 }

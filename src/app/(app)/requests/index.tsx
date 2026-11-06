@@ -1,23 +1,28 @@
-import { useMemo, useState } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Text } from 'react-native';
 import { RequestCard } from '@/components/RequestCard';
-import { DemoBanner } from '@/components/StatusNotices';
-import { Chip, Field, H1, P, Row, Screen, Spacer } from '@/components/ui';
-import { DEMO_REQUESTS } from '@/demo/requests';
-import { CATEGORY_ICON, CATEGORY_LABEL, RequestCategory } from '@/lib/types';
+import { Button, Chip, Field, H1, Notice, P, Row, Screen, Spacer } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
+import { fetchOpenRequests, showDemoRequests } from '@/lib/requests';
+import { CATEGORY_ICON, CATEGORY_LABEL, RequestCategory, SupportRequest } from '@/lib/types';
 import { colors, font, space } from '@/theme';
 
-// 支援募集一覧：カテゴリ別・地域別・キーワードで絞り込み（ここは実際に動作する）
+// 支援募集一覧：カテゴリ別・地域別・キーワードで絞り込み
 export default function RequestList() {
+  const { profile } = useAuth();
+  const [source, setSource] = useState<SupportRequest[] | null>(null);
   const [category, setCategory] = useState<RequestCategory | null>(null);
   const [region, setRegion] = useState<string | null>(null);
   const [keyword, setKeyword] = useState('');
 
-  // STEP 6 で Supabase からの取得に置き換える
-  const source = DEMO_REQUESTS;
-  const regions = useMemo(() => Array.from(new Set(source.map((r) => r.region))), [source]);
+  useEffect(() => {
+    fetchOpenRequests().then(setSource);
+  }, []);
 
-  const list = source.filter(
+  const regions = useMemo(() => Array.from(new Set((source ?? []).map((r) => r.region))), [source]);
+
+  const list = (source ?? []).filter(
     (r) =>
       r.status === 'open' &&
       (!category || r.category === category) &&
@@ -28,7 +33,10 @@ export default function RequestList() {
   return (
     <Screen>
       <H1>支援の募集</H1>
-      <DemoBanner />
+      {showDemoRequests && <Notice tone="warn">【デモ】と付いた募集は架空のデモデータです。申込はできません。</Notice>}
+      {profile?.role === 'kodomo_shokudo' && profile.verification_status === 'approved' && (
+        <Button label="✏️ 募集をつくる" variant="accent" onPress={() => router.push('/requests/new')} />
+      )}
       <Field label="キーワード" placeholder="例：お米、調理" value={keyword} onChangeText={setKeyword} />
 
       <Text style={{ fontSize: font.md, fontWeight: '700', color: colors.text, marginBottom: 6 }}>種類</Text>
@@ -48,12 +56,18 @@ export default function RequestList() {
       </Row>
       <Spacer h={space.lg} />
 
-      <P sub>{list.length}件の募集</P>
-      <Spacer h={space.sm} />
-      {list.map((r) => (
-        <RequestCard key={r.id} r={r} />
-      ))}
-      {list.length === 0 && <P sub>条件に合う募集はありません。条件を変えてみてください。</P>}
+      {source === null ? (
+        <P sub>読み込み中…</P>
+      ) : (
+        <>
+          <P sub>{list.length}件の募集</P>
+          <Spacer h={space.sm} />
+          {list.map((r) => (
+            <RequestCard key={r.id} r={r} />
+          ))}
+          {list.length === 0 && <P sub>条件に合う募集はありません。条件を変えてみてください。</P>}
+        </>
+      )}
     </Screen>
   );
 }

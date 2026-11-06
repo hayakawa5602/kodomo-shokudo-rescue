@@ -1,6 +1,10 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text } from 'react-native';
-import { NotYetConnected } from '@/components/StatusNotices';
+import { NotConfigured } from '@/components/StatusNotices';
+import { useAuth } from '@/lib/auth';
+import { createRequest, dbErrorMessage } from '@/lib/requests';
+import { supabase } from '@/lib/supabase';
 import { Button, Chip, Field, H1, H2, Notice, P, Row, Screen } from '@/components/ui';
 import { CATEGORY_ICON, CATEGORY_LABEL, HANDOVER_LABEL, REGIONS, RequestCategory, STORAGE_LABEL } from '@/lib/types';
 import { RequestDraft, validateRequest } from '@/lib/validation';
@@ -17,22 +21,41 @@ function Err({ msg }: { msg?: string }) {
 
 // 募集作成：審査承認済みの子ども食堂のみ利用可（DB側のRLSでも制限）
 export default function NewRequest() {
+  const { session, profile } = useAuth();
   const [d, setD] = useState<RequestDraft>(empty);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState('');
   const set = <K extends keyof RequestDraft>(k: K, v: RequestDraft[K]) => setD((p) => ({ ...p, [k]: v }));
 
-  const submit = () => {
+  const canPost = profile?.role === 'kodomo_shokudo' && profile.verification_status === 'approved' && !profile.is_suspended;
+
+  const submit = async () => {
     const e = validateRequest(d);
     setErrors(e);
-    setOk(Object.keys(e).length === 0);
+    setServerError('');
+    if (Object.keys(e).length > 0 || !session) return;
+    setBusy(true);
+    try {
+      const id = await createRequest(session.user.id, d);
+      router.replace({ pathname: '/requests/[id]', params: { id } });
+    } catch (err: any) {
+      setServerError(dbErrorMessage(err?.message ?? String(err)));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <Screen>
       <H1>募集をつくる</H1>
-      <NotYetConnected step="STEP 6" what="募集の保存・公開" />
-      <Notice tone="info">募集を出せるのは、団体審査が承認された子ども食堂だけです。</Notice>
+      <NotConfigured />
+      {!canPost && (
+        <Notice tone="warn">
+          募集を出せるのは、団体審査が承認された子ども食堂だけです。
+          {profile?.role === 'kodomo_shokudo' ? '審査の状態をホームで確認してください。' : ''}
+        </Notice>
+      )}
 
       <H2>何を募集しますか？</H2>
       <Row wrap>
@@ -97,8 +120,8 @@ export default function NewRequest() {
         </>
       )}
 
-      <Button label="入力内容をチェック" variant="accent" onPress={submit} />
-      {ok && <Notice tone="info">入力内容に問題はありません（まだ保存はされません）。</Notice>}
+      {serverError !== '' && <Notice tone="danger">{serverError}</Notice>}
+      <Button label={busy ? '公開中…' : '募集を公開する'} variant="accent" onPress={submit} disabled={busy || !canPost || !supabase} />
     </Screen>
   );
 }

@@ -1,15 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
-import { DemoBanner, NotYetConnected } from '@/components/StatusNotices';
 import { Badge, Button, Card, Field, H1, H2, Notice, P, Row, Screen } from '@/components/ui';
-import { DEMO_REQUESTS } from '@/demo/requests';
+import { useAuth } from '@/lib/auth';
+import { dbErrorMessage, fetchRequest, isDemoId, reportRequest, setRequestStatus } from '@/lib/requests';
 import {
   CATEGORY_ICON,
   CATEGORY_LABEL,
   HANDOVER_LABEL,
   REQUEST_STATUS_LABEL,
   STORAGE_LABEL,
+  SupportRequest,
 } from '@/lib/types';
 import { colors, font } from '@/theme';
 
@@ -25,10 +26,26 @@ function Item({ label, value }: { label: string; value?: string }) {
 
 export default function RequestDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const r = DEMO_REQUESTS.find((x) => x.id === id);
+  const { session, profile } = useAuth();
+  const [r, setR] = useState<SupportRequest | null | undefined>(undefined);
   const [reporting, setReporting] = useState(false);
   const [reason, setReason] = useState('');
+  const [msg, setMsg] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
+  const load = () => fetchRequest(id).then(setR);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  if (r === undefined) {
+    return (
+      <Screen>
+        <P sub>読み込み中…</P>
+      </Screen>
+    );
+  }
   if (!r) {
     return (
       <Screen>
@@ -39,12 +56,48 @@ export default function RequestDetail() {
     );
   }
 
+  const demo = isDemoId(r.id);
+  const isOwner = !!session && r.ownerId === session.user.id;
+  const canApply =
+    !!profile && !demo && !isOwner && r.status === 'open' && r.category !== 'fund' &&
+    (profile.role === 'company' || profile.role === 'resident') && profile.verification_status === 'approved' && !profile.is_suspended;
+
+  const changeStatus = async (status: 'open' | 'closed' | 'completed') => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await setRequestStatus(r.id, status);
+      await load();
+      setMsg({ tone: 'info', text: `募集を「${REQUEST_STATUS_LABEL[status]}」にしました。` });
+    } catch (e: any) {
+      setMsg({ tone: 'danger', text: dbErrorMessage(e?.message ?? String(e)) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendReport = async () => {
+    if (!session) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await reportRequest(session.user.id, r.id, reason);
+      setReporting(false);
+      setReason('');
+      setMsg({ tone: 'info', text: '通報を受け付けました。運営者が確認します。' });
+    } catch (e: any) {
+      setMsg({ tone: 'danger', text: dbErrorMessage(e?.message ?? String(e)) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Screen>
-      <DemoBanner />
+      {demo && <Notice tone="warn">【デモ】架空のデモデータです。申込はできません。</Notice>}
       <Row wrap>
         <Badge label={`${CATEGORY_ICON[r.category]} ${CATEGORY_LABEL[r.category]}`} tone={r.category === 'fund' ? 'orange' : 'green'} />
-        <Badge label={REQUEST_STATUS_LABEL[r.status]} />
+        <Badge label={REQUEST_STATUS_LABEL[r.status]} tone={r.status === 'open' ? 'green' : 'gray'} />
       </Row>
       <H1>{r.title}</H1>
       <P sub>
@@ -74,20 +127,47 @@ export default function RequestDetail() {
         )}
       </Card>
 
-      {r.category === 'fund' ? (
-        <Notice tone="warn">資金支援の決済は、法的確認が完了するまで利用できません。</Notice>
-      ) : (
-        <Button label="この募集に支援を申し込む" variant="accent" onPress={() => router.push({ pathname: '/requests/[id]/apply', params: { id: r.id } })} />
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+
+      {/* 募集者本人の操作 */}
+      {isOwner && (
+        <Card>
+          <H2>この募集の管理</H2>
+          <Button label="届いた申込を見る" onPress={() => router.push('/applications')} />
+          {r.status === 'open' && <Button label="募集を終了する" variant="outline" onPress={() => changeStatus('closed')} disabled={busy} />}
+          {r.status === 'closed' && <Button label="募集を再開する" variant="outline" onPress={() => changeStatus('open')} disabled={busy} />}
+          {r.status !== 'completed' && <Button label="支援完了にする" variant="outline" onPress={() => changeStatus('completed')} disabled={busy} />}
+        </Card>
       )}
 
-      <H2>不適切な募集の通報</H2>
-      {!reporting ? (
-        <Button label="🚩 この募集を通報する" variant="danger" onPress={() => setReporting(true)} />
-      ) : (
+      {/* 支援者の操作 */}
+      {!isOwner && r.category === 'fund' && <Notice tone="warn">資金支援の決済は、法的確認が完了するまで利用できません。</Notice>}
+      {canApply && (
+        <Button label="この募集に支援を申し込む" variant="accent" onPress={() => router.push({ pathname: '/requests/[id]/apply', params: { id: r.id } })} />
+      )}
+      {!session && !demo && r.status === 'open' && r.category !== 'fund' && (
+        <Button label="申し込むにはログイン" variant="accent" onPress={() => router.push('/login')} />
+      )}
+      {session && !isOwner && !demo && !canApply && r.status === 'open' && r.category !== 'fund' && (
+        <Notice tone="info">
+          {profile?.role === 'kodomo_shokudo'
+            ? '子ども食堂のアカウントからは申し込めません。'
+            : '支援を申し込むには、本人確認・団体審査の承認が必要です。'}
+        </Notice>
+      )}
+
+      {session && !isOwner && !demo && (
         <>
-          <NotYetConnected step="STEP 9" what="通報の送信" />
-          <Field label="通報の理由" multiline value={reason} onChangeText={setReason} placeholder="例：営利目的の勧誘に見える、内容が事実と異なる" />
-          <Button label="通報する" variant="danger" disabled={reason.trim().length < 5} />
+          <H2>不適切な募集の通報</H2>
+          {!reporting ? (
+            <Button label="🚩 この募集を通報する" variant="danger" onPress={() => setReporting(true)} />
+          ) : (
+            <>
+              <Field label="通報の理由" multiline value={reason} onChangeText={setReason} placeholder="例：営利目的の勧誘に見える、内容が事実と異なる" maxLength={500} />
+              <Button label="通報する" variant="danger" disabled={reason.trim().length < 5 || busy} onPress={sendReport} />
+              <Button label="やめる" variant="outline" onPress={() => setReporting(false)} />
+            </>
+          )}
         </>
       )}
     </Screen>
