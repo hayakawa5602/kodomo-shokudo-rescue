@@ -35,6 +35,7 @@ export default function AdminLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: '管理者ダッシュボード' }} />
+      <Stack.Screen name="verifications" options={{ title: '本人確認・団体審査' }} />
     </Stack>
   );
 }

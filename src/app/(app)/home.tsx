@@ -1,4 +1,5 @@
 import { Href, router } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ProfileStatus } from '@/components/ProfileStatus';
 import { DemoBanner } from '@/components/StatusNotices';
@@ -19,7 +20,11 @@ const MENU: MenuItem[] = [
 ];
 
 export default function Home() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
+  useEffect(() => {
+    refreshProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const status = profile?.verification_status;
   const menu = MENU.filter((m) => !m.roles || (profile && m.roles.includes(profile.role)));
 
