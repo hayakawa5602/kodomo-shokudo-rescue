@@ -33,6 +33,26 @@
 「Authentication」→「Sign In / Providers」→「Email」が有効になっていることを確認します。
 試作の間は「Confirm email」をオンのままにしてください（なりすまし登録の防止）。
 
+### 確認メールのリンク先（URL Configuration）
+
+「Authentication」→「URL Configuration」で次のように設定します。
+
+- **Site URL**：`https://hayakawa5602.github.io/kodomo-shokudo-rescue/`
+- **Redirect URLs**（「Add URL」で2つ追加）
+  - `https://hayakawa5602.github.io/kodomo-shokudo-rescue/**`
+  - `http://localhost:8081/**`（自分のパソコンで開発するとき用）
+
+設定しないと、確認メールのリンクを押したときに「localhost」が開いてしまいます。
+
+### 確認メールの注意（Supabase標準のメール送信）
+
+Supabase標準のメール送信は、**そのSupabase組織のメンバーのメールアドレスにしか届きません**。また1時間に送れる通数にも上限があります。
+
+- 先生ご自身のアドレスでのテスト → そのまま届きます
+- 生徒や他の先生にテストしてもらう → 次のどちらかが必要です
+  1. 「Authentication」→「Sign In / Providers」→「Email」の「Confirm email」をオフにする（試作中のみ。登録後すぐログインできる）
+  2. 学校で使える送信用メール（SMTP）を「Authentication」→「Emails」→「SMTP Settings」に設定する
+
 ## 5. 最初の管理者を決める
 
 管理者はアプリからは絶対に作れない設計です。

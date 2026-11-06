@@ -2,13 +2,15 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text } from 'react-native';
 import { Checkbox } from '@/components/Checkbox';
-import { NotYetConnected } from '@/components/StatusNotices';
+import { NotConfigured } from '@/components/StatusNotices';
+import { setSignupDraft } from '@/lib/signupDraft';
 import { Button, Field, H1, H2, Notice, P, Screen } from '@/components/ui';
 import { isEmail, validatePassword } from '@/lib/validation';
 import { colors, font } from '@/theme';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [isAdult, setIsAdult] = useState<boolean | null>(null);
@@ -25,14 +27,33 @@ export default function Signup() {
     if (isAdult === null) e.age = '年齢区分を選んでください';
     if (isAdult === false && !guardianConsent) e.guardian = '18歳未満の方は保護者の同意が必要です';
     if (!agree) e.agree = '利用規約とプライバシーポリシーへの同意が必要です';
+    if (!displayName.trim()) e.displayName = '表示名を入力してください';
+    else if (displayName.trim().length > 60) e.displayName = '表示名は60文字以内にしてください';
     setErrors(e);
-    if (Object.keys(e).length === 0) router.push('/role-select');
+    if (Object.keys(e).length > 0) return;
+    setSignupDraft({
+      email: email.trim(),
+      password,
+      displayName: displayName.trim(),
+      isMinor: isAdult === false,
+      guardianConsent: isAdult === false && guardianConsent,
+    });
+    router.push('/role-select');
   };
 
   return (
     <Screen>
       <H1>新規登録</H1>
-      <NotYetConnected step="STEP 4" what="アカウントの作成" />
+      <NotConfigured />
+      <Field
+        label="表示名"
+        required
+        hint="団体名・企業名、または地域住民の方はニックネーム。募集や申込で相手に表示されます"
+        value={displayName}
+        onChangeText={setDisplayName}
+        maxLength={60}
+        error={errors.displayName}
+      />
       <Field label="メールアドレス" required value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" error={errors.email} />
       <Field label="パスワード" required hint="10文字以上・英字と数字を含める" value={password} onChangeText={setPassword} secureTextEntry error={errors.password} />
       <Field label="パスワード（確認）" required value={password2} onChangeText={setPassword2} secureTextEntry error={errors.password2} />

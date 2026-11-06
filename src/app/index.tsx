@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { Button, Card, H2, P, Row, Screen, Spacer } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/theme';
 
 // トップページ（ログイン前）
 export default function Top() {
+  const { session } = useAuth();
   return (
     <Screen>
       <View style={styles.hero}>
@@ -14,8 +16,14 @@ export default function Top() {
         <Text style={styles.sdg}>SDGs 目標2「飢餓をゼロに」</Text>
       </View>
 
-      <Button label="はじめる（新規登録）" variant="accent" onPress={() => router.push('/signup')} />
-      <Button label="ログイン" variant="outline" onPress={() => router.push('/login')} />
+      {session ? (
+        <Button label="ホームへ進む" variant="accent" onPress={() => router.push('/home')} />
+      ) : (
+        <>
+          <Button label="はじめる（新規登録）" variant="accent" onPress={() => router.push('/signup')} />
+          <Button label="ログイン" variant="outline" onPress={() => router.push('/login')} />
+        </>
+      )}
       <Button label="支援の募集を見てみる" variant="outline" onPress={() => router.push('/requests')} />
 
       <H2>できること</H2>

@@ -1,8 +1,35 @@
-import { Stack } from 'expo-router';
+import { Redirect, Stack, useSegments } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
+import { useAuth } from '@/lib/auth';
 import { colors } from '@/theme';
 
-// ログイン後の画面群。STEP 4 で「未ログインならログイン画面へ戻す」処理を追加する。
+/** ログインしていなくても見られる画面（募集の一覧と詳細） */
+function isPublic(segments: string[]): boolean {
+  const s = segments.slice(1); // 先頭の "(app)" を除く
+  if (s[0] !== 'requests') return false;
+  if (s.length === 1) return true; // 一覧
+  if (s.length === 2 && s[1] === '[id]') return true; // 詳細
+  if (s.length === 3 && s[1] === '[id]' && s[2] === 'index') return true;
+  return false;
+}
+
+// ログイン後の画面群。未ログインならログイン画面へ戻す。
+// ※画面の出し分けは使いやすさのため。データの保護はDBのRLSで行っている。
 export default function AppLayout() {
+  const { session, loading } = useAuth();
+  const segments = useSegments() as string[];
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+  if (!session && !isPublic(segments)) {
+    return <Redirect href="/login" />;
+  }
+
   return (
     <Stack
       screenOptions={{

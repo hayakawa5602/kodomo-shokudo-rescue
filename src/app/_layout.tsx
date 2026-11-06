@@ -1,10 +1,11 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { AuthProvider } from '@/lib/auth';
 import { colors } from '@/theme';
 
 export default function RootLayout() {
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -22,6 +23,6 @@ export default function RootLayout() {
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { Notice } from './ui';
-import { isDemoMode } from '@/lib/supabase';
+import { isDemoMode, isSupabaseConfigured } from '@/lib/supabase';
 
 /** デモデータ表示中であることを常に明示する */
 export function DemoBanner() {
@@ -16,6 +16,16 @@ export function NotYetConnected({ step, what }: { step: string; what: string }) 
   return (
     <Notice tone="info">
       🛠 {what}は {step} で実装予定です。現在は画面と入力チェックのみ動作し、送信・保存は行われません。
+    </Notice>
+  );
+}
+
+/** Supabase の設定がないときに表示（.env 未設定） */
+export function NotConfigured() {
+  if (isSupabaseConfigured) return null;
+  return (
+    <Notice tone="danger">
+      サーバーの設定（.env）がないため、登録・ログインはできません。README の「環境設定」を確認してください。
     </Notice>
   );
 }

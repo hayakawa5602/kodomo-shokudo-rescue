@@ -1,26 +1,31 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
+import { ProfileStatus } from '@/components/ProfileStatus';
 import { NotYetConnected } from '@/components/StatusNotices';
-import { Badge, Button, Card, H1, H2, Notice, P, Row, Screen } from '@/components/ui';
-import { VERIFICATION_LABEL } from '@/lib/types';
+import { Button, Card, H1, H2, Notice, P, Screen } from '@/components/ui';
+import { useAuth } from '@/lib/auth';
 
 export default function MyPage() {
+  const { profile, session, signOut } = useAuth();
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const logout = async () => {
+    await signOut();
+    router.replace('/');
+  };
+
   return (
     <Screen>
       <H1>マイページ</H1>
-      <NotYetConnected step="STEP 4〜5" what="登録情報の表示・変更" />
       <Card>
-        <Row>
-          <P>審査の状態：</P>
-          <Badge label={VERIFICATION_LABEL.unsubmitted} tone="gray" />
-        </Row>
+        {profile && <ProfileStatus profile={profile} />}
+        <P sub>メールアドレス：{session?.user.email}</P>
       </Card>
       <Button label="本人確認・団体審査" variant="outline" onPress={() => router.push('/verification')} />
       <Button label="支援履歴" variant="outline" onPress={() => router.push('/history')} />
       <Button label="利用規約" variant="outline" onPress={() => router.push('/terms')} />
       <Button label="プライバシーポリシー" variant="outline" onPress={() => router.push('/privacy')} />
-      <Button label="ログアウト（STEP 4で有効化）" variant="outline" disabled />
+      <Button label="ログアウト" onPress={logout} />
 
       <H2>退会（アカウント削除）</H2>
       {!confirmDelete ? (
