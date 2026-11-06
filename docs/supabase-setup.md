@@ -25,8 +25,12 @@
 ## 3. データベースを作る
 
 1. 左メニュー「SQL Editor」→「New query」
-2. `supabase/migrations/20261030000000_initial_schema.sql` の中身を全部貼り付けて「Run」
+2. `supabase/migrations/` の中のファイルを、**ファイル名の順に1つずつ**、中身を全部貼り付けて「Run」
+   - `20261030000000_initial_schema.sql`（テーブル・権限）
+   - `20261106000000_admin_reports_and_account_deletion.sql`（通報対応・退会）
 3. 左メニュー「Table Editor」に `profiles`・`support_requests` などが表示されれば成功
+
+> すでに1本目を実行済みのプロジェクトでは、新しく追加されたファイルだけを実行してください。
 
 ## 4. 認証の設定
 

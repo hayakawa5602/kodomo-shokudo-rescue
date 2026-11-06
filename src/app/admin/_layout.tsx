@@ -36,6 +36,9 @@ export default function AdminLayout() {
     >
       <Stack.Screen name="index" options={{ title: '管理者ダッシュボード' }} />
       <Stack.Screen name="verifications" options={{ title: '本人確認・団体審査' }} />
+      <Stack.Screen name="reports" options={{ title: '通報の確認' }} />
+      <Stack.Screen name="users" options={{ title: '利用者の管理' }} />
+      <Stack.Screen name="logs" options={{ title: '操作履歴' }} />
     </Stack>
   );
 }

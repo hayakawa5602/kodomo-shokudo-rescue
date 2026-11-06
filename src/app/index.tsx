@@ -1,12 +1,13 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { Button, Card, H2, P, Row, Screen, Spacer } from '@/components/ui';
+import { Button, Card, H2, Notice, P, Row, Screen, Spacer } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { colors, font, radius, space } from '@/theme';
 
 // トップページ（ログイン前）
 export default function Top() {
   const { session } = useAuth();
+  const { deleted } = useLocalSearchParams<{ deleted?: string }>();
   return (
     <Screen>
       <View style={styles.hero}>
@@ -16,6 +17,7 @@ export default function Top() {
         <Text style={styles.sdg}>SDGs 目標2「飢餓をゼロに」</Text>
       </View>
 
+      {deleted === '1' && <Notice tone="info">退会が完了しました。ご利用ありがとうございました。</Notice>}
       {session ? (
         <Button label="ホームへ進む" variant="accent" onPress={() => router.push('/home')} />
       ) : (

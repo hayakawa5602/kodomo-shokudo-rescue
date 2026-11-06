@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { NotYetConnected } from '@/components/StatusNotices';
 import { Button, Card, H1, H2, P, Screen } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { colors, font, radius, space } from '@/theme';
@@ -34,7 +33,7 @@ export default function AdminDashboard() {
 
   const tiles: [string, number | undefined, (() => void) | undefined][] = [
     ['審査待ち', stats?.pendingVerifications, () => router.push('/admin/verifications')],
-    ['未対応の通報', stats?.openReports, undefined],
+    ['未対応の通報', stats?.openReports, () => router.push('/admin/reports')],
     ['公開中の募集', stats?.openRequests, undefined],
     ['今月の支援完了', stats?.completedThisMonth, undefined],
   ];
@@ -58,11 +57,13 @@ export default function AdminDashboard() {
       </View>
 
       <Button label="本人確認・団体審査を行う" onPress={() => router.push('/admin/verifications')} />
+      <Button label="通報を確認する" variant="outline" onPress={() => router.push('/admin/reports')} />
+      <Button label="利用者の管理（利用停止）" variant="outline" onPress={() => router.push('/admin/users')} />
+      <Button label="操作履歴を見る" variant="outline" onPress={() => router.push('/admin/logs')} />
 
-      <H2>今後の管理機能</H2>
-      <NotYetConnected step="STEP 8〜9" what="通報対応・利用停止・操作履歴の閲覧" />
+      <H2>運営上の注意</H2>
       <Card>
-        <P sub>承認・却下などの操作はサーバー側の関数で行い、すべて操作履歴（admin_audit_logs）に自動で記録されます。</P>
+        <P sub>承認・却下・非公開化・利用停止はサーバー側の関数で行い、すべて操作履歴に自動で記録されます。管理者の追加はアプリからはできません（データベースで設定）。</P>
       </Card>
     </Screen>
   );

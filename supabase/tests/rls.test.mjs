@@ -14,7 +14,11 @@ grant usage on schema public, auth, storage to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 `;
 await db.exec(stub);
-await db.exec(readFileSync(new URL("../migrations/20261030000000_initial_schema.sql", import.meta.url), 'utf8'));
+import { readdirSync } from 'fs';
+const migDir = new URL("../migrations/", import.meta.url);
+for (const f of readdirSync(migDir).filter((x) => x.endsWith('.sql')).sort()) {
+  await db.exec(readFileSync(new URL(f, migDir), 'utf8'));
+}
 await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated; grant select on all tables in schema public to anon;`);
 
 const U = { kodomo:'11111111-1111-1111-1111-111111111111', resident:'22222222-2222-2222-2222-222222222222', admin:'33333333-3333-3333-3333-333333333333', minor:'44444444-4444-4444-4444-444444444444' };
@@ -86,6 +90,30 @@ await expectOk('管理者が募集を非公開化', () => as(U.admin, `select ad
 await expectRows('非公開の募集は一般に見えない', () => as(null, `select id from support_requests where id=$1`, [reqId]), 0);
 await expectErr('募集者が非公開を自分で解除', () => as(U.kodomo, `update support_requests set status='open' where id=$1`, [reqId]).then(r=>{ if(r.affectedRows===0) throw new Error('0行'); }));
 await expectErr('管理者は自分自身を停止できない', () => as(U.admin, `select admin_set_suspended($1, true, 'x')`, [U.admin]));
+
+// ---- STEP 8〜9：通報の却下・退会
+const rep2 = await db.query(`select id from reports limit 1`);
+await expectErr('一般利用者は通報を却下できない', () => as(U.resident, `select admin_dismiss_report($1, 'x')`, [rep2.rows[0].id]));
+await expectOk('管理者は通報を却下できる', () => as(U.admin, `select admin_dismiss_report($1, '確認したが問題なし')`, [rep2.rows[0].id]));
+await expectErr('未ログインは退会できない', () => as(null, `select delete_my_account()`));
+await expectErr('管理者は退会できない', () => as(U.admin, `select delete_my_account()`));
+// 住民が新しい募集に申し込んで進行中にする
+await as(U.admin, `select admin_set_request_hidden($1, false, '解除')`, [reqId]);
+const req2 = await as(U.kodomo, foodReq, [U.kodomo]);
+const ap2 = await as(U.resident, apply('current_date + 10'), [req2.rows[0].id, U.resident]);
+await expectErr('進行中の申込があると退会できない', () => as(U.resident, `select delete_my_account()`));
+await as(U.resident, `update applications set status='cancelled' where id=$1`, [ap2.rows[0].id]);
+await as(U.resident, `insert into verification_requests (user_id, document_paths) values ($1, '{c.jpg}')`, [U.resident]).catch(()=>{});
+await db.query(`insert into storage.objects (bucket_id, name) values ('verification-docs', $1)`, [U.resident + '/b.jpg']);
+await expectOk('進行中の申込がなければ退会できる', () => as(U.resident, `select delete_my_account()`));
+await expectRows('退会後：ログイン情報が消える', () => db.query(`select * from auth.users where id=$1`, [U.resident]), 0);
+await expectRows('退会後：連絡先が消える', () => db.query(`select * from profile_private where id=$1`, [U.resident]), 0);
+await expectRows('退会後：本人確認書類が消える', () => db.query(`select * from storage.objects where name like $1`, [U.resident + '/%']), 0);
+await expectRows('退会後：通知が消える', () => db.query(`select * from notifications where user_id=$1`, [U.resident]), 0);
+const anon = await db.query(`select display_name, is_suspended from profiles where id=$1`, [U.resident]);
+anon.rows[0]?.display_name === '退会済みユーザー' && anon.rows[0].is_suspended ? (pass++, console.log('✔ 退会後：表示名が匿名化され利用停止になる')) : (fail++, console.log('✘ 匿名化されていない', anon.rows));
+await expectRows('退会後：支援の記録は残る', () => db.query(`select * from applications where applicant_id=$1`, [U.resident]), 2);
+await expectRows('退会が操作履歴に残る', () => db.query(`select * from admin_audit_logs where action='account_deleted'`), 1);
 
 console.log(`\n結果: ${pass} 件成功 / ${fail} 件失敗`);
 process.exit(fail ? 1 : 0);
